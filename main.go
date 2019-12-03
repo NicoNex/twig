@@ -1,8 +1,30 @@
+/*
+ * Twig
+ * Copyright (C) 2019  Nicolò Santamaria
+ *
+ * Twig is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Twig is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package main
 
 import (
 	"os"
 	"fmt"
+	"flag"
+
+	"github.com/logrusorgru/aurora"
+	// "golang.org/x/crypto/ssh/terminal"
 )
 
 const (
@@ -10,49 +32,89 @@ const (
 	SINDENT = "│   "
 )
 
-// Checks if the file is hidden.
-func isHidden() bool {
+var ndirs int
+var nfiles int
 
+var printAll bool
+
+// TODO: fix colours
+func printFile(prefix string, info os.FileInfo) {
+	var fname = info.Name()
+	var mode = info.Mode()
+
+	if info.IsDir() {
+		fmt.Printf("%s%s\n", prefix, aurora.BrightBlue(fname))
+	} else if mode&(1<<0) != 0 { // checks if it's executable
+		fmt.Printf("%s%s\n", prefix, aurora.BrightGreen(fname))
+	} else {
+		fmt.Printf("%s%s\n", prefix, fname)
+	}
 }
 
-func printTree(root, prefix string, depth int) {
+func walkDir(root string, prefix string, depth int) {
+	var nfiles uint
+
 	f, err := os.Open(root)
 	if err != nil {
 		return
 	}
+	defer f.Close()
 
 	fileInfo, err := f.Readdir(-1)
-	f.Close()
 	if err != nil {
 		return
 	}
+	nfiles = len(fileInfo)
 
-	for i, file := range fileInfo {
-		var isLast = i == len(fileInfo)-1
-		var fname = file.Name()
+	for i, finfo := range fileInfo {
+		// var line string
+		var isLast = i == nfiles-1
+		var fname = finfo.Name()
+
+		if !printAll && fname[0] == '.' {
+			continue
+		}
 
 		if isLast {
 			fmt.Printf("%s└── %s\n", prefix, fname)
+			// line = prefix + "└── "
 		} else {
 			fmt.Printf("%s├── %s\n", prefix, fname)
+			// line = prefix + "├── "
 		}
+		// printFile(line, finfo)
 
-		if file.IsDir() {
-			path := fmt.Sprintf("%s/%s", root, fname)
+		if finfo.IsDir() {
+			newPath := fmt.Sprintf("%s/%s", root, fname)
 			if isLast {
-				printTree(path, prefix+NINDENT, depth+1)
+				walkDir(newPath, prefix+NINDENT, depth+1)
 			} else {
-				printTree(path, prefix+SINDENT, depth+1)
+				walkDir(newPath, prefix+SINDENT, depth+1)
 			}
+			ndirs++
+		} else {
+			nfiles++
 		}
 	}
 }
 
-func main() {
-	var arglen = len(os.Args)
+func printHelp() {
+	// Put the help message here.
+}
 
-	if arglen > 1 {
-		fmt.Println(os.Args[arglen-1])
-		printTree(os.Args[arglen-1], "", 0)
+func main() {
+	var rootdir = "./"
+	var nargs = flag.NArg()
+	if nargs > 0 {
+		rootdir = os.Args[len(os.Args)-1]
 	}
+
+	fmt.Println(rootdir)
+	walkDir(rootdir, "", 0)
+	fmt.Printf("\n%d directories, %d files\n", ndirs, nfiles)
+}
+
+func init() {
+	flag.BoolVar(&printAll, "a", false, "Print all files including the hiddnen ones.")
+	flag.Parse()
 }
