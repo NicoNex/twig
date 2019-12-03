@@ -1,6 +1,5 @@
 
-/*
- * Twig
+/* Twig
  * Copyright (C) 2019  Nicolò Santamaria
  *
  * Twig is free software: you can redistribute it and/or modify
@@ -160,7 +159,7 @@ func main() {
 }
 
 func init() {
-	flag.BoolVar(&printAll, "a", false, "Prints all files including the hiddnen ones.")
+	flag.BoolVar(&printAll, "a", false, "Prints all files including the hidden ones.")
 	flag.BoolVar(&dirsOnly, "d", false, "Prints only the directories.")
 	flag.StringVar(&pattern, "e", "", "Prints only the files that match the regex. (Coming soon...)")
 	colours := flag.Bool("c", true, "Set to false to disable colours.")
