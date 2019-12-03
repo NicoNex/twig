@@ -1,3 +1,4 @@
+
 /*
  * Twig
  * Copyright (C) 2019  Nicolò Santamaria
@@ -22,9 +23,10 @@ import (
 	"os"
 	"fmt"
 	"flag"
+	"regexp"
 
 	"github.com/logrusorgru/aurora"
-	// "golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 const (
@@ -36,70 +38,113 @@ var ndirs int
 var nfiles int
 
 var printAll bool
+var dirsOnly bool
+var pattern string
 
-// TODO: fix colours
+var au aurora.Aurora
+
+func isatty() bool {
+	fd := os.Stdout.Fd()
+	return terminal.IsTerminal(int(fd))
+}
+
 func printFile(prefix string, info os.FileInfo) {
 	var fname = info.Name()
 	var mode = info.Mode()
 
 	if info.IsDir() {
-		fmt.Printf("%s%s\n", prefix, aurora.BrightBlue(fname))
-	} else if mode&(1<<0) != 0 { // checks if it's executable
-		fmt.Printf("%s%s\n", prefix, aurora.BrightGreen(fname))
-	} else {
-		fmt.Printf("%s%s\n", prefix, fname)
+		fmt.Printf("%s%s\n", prefix, au.Blue(fname).Bold())
+	} else if !dirsOnly {
+		if mode&0111 != 0 { // checks if it's executable
+			fmt.Printf("%s%s\n", prefix, au.Green(fname).Bold())
+		} else {
+			fmt.Printf("%s%s\n", prefix, fname)
+		}
 	}
 }
 
-func walkDir(root string, prefix string, depth int) {
-	var nfiles uint
+func filterDirs(files []os.FileInfo) (dirs []os.FileInfo, length int) {
+	for _, f := range files {
+		if f.IsDir() {
+			fname := f.Name()
+			if fname[0] != '.' || printAll {
+				dirs = append(dirs, f)
+				length++
+			}
+		}
+	}
+	return
+}
 
+func filterExpr(files []os.FileInfo) (dirs []os.FileInfo, length int) {
+	for _, f := range files {
+		ok, err := regexp.MatchString(pattern, f.Name())
+		if ok {
+			dirs = append(dirs, f)
+			length++
+		} else if err != nil {
+			fmt.Println(au.Red(err).Bold())
+		}
+	}
+	return
+}
+
+// TODO: Design the pattern matching properly.
+func walkDir(root string, prefix string, depth int) {
+	var arrlen int
 	f, err := os.Open(root)
 	if err != nil {
 		return
 	}
 	defer f.Close()
 
-	fileInfo, err := f.Readdir(-1)
+	files, err := f.Readdir(-1)
 	if err != nil {
 		return
 	}
-	nfiles = len(fileInfo)
 
-	for i, finfo := range fileInfo {
-		// var line string
-		var isLast = i == nfiles-1
+	if dirsOnly {
+		files, arrlen = filterDirs(files)
+	} else {
+		arrlen = len(files)
+	}
+
+	// if pattern != "" {
+	// 	files, arrlen = filterExpr(files)
+	// } else if dirsOnly {
+	// 	files, arrlen = filterDirs(files)
+	// } else {
+	// 	arrlen = len(files)
+	// }
+
+	for i, finfo := range files {
+		var line = prefix
+		var isLast = i == arrlen-1
 		var fname = finfo.Name()
 
-		if !printAll && fname[0] == '.' {
-			continue
-		}
-
-		if isLast {
-			fmt.Printf("%s└── %s\n", prefix, fname)
-			// line = prefix + "└── "
-		} else {
-			fmt.Printf("%s├── %s\n", prefix, fname)
-			// line = prefix + "├── "
-		}
-		// printFile(line, finfo)
-
-		if finfo.IsDir() {
-			newPath := fmt.Sprintf("%s/%s", root, fname)
+		if fname[0] != '.' || printAll {
 			if isLast {
-				walkDir(newPath, prefix+NINDENT, depth+1)
+				line += "└── "
 			} else {
-				walkDir(newPath, prefix+SINDENT, depth+1)
+				line += "├── "
 			}
-			ndirs++
+			printFile(line, finfo)
+
+			if finfo.IsDir() {
+				newPath := fmt.Sprintf("%s/%s", root, fname)
+				if isLast {
+					walkDir(newPath, prefix+NINDENT, depth+1)
+				} else {
+					walkDir(newPath, prefix+SINDENT, depth+1)
+				}
+				ndirs++
+			} else {
+				nfiles++
+			}
 		} else {
-			nfiles++
+			i--
 		}
 	}
-}
-
-func printHelp() {
-	// Put the help message here.
 }
 
 func main() {
@@ -115,6 +160,10 @@ func main() {
 }
 
 func init() {
-	flag.BoolVar(&printAll, "a", false, "Print all files including the hiddnen ones.")
+	flag.BoolVar(&printAll, "a", false, "Prints all files including the hiddnen ones.")
+	flag.BoolVar(&dirsOnly, "d", false, "Prints only the directories.")
+	flag.StringVar(&pattern, "e", "", "Prints only the files that match the regex. (Coming soon...)")
+	colours := flag.Bool("c", true, "Set to false to disable colours.")
 	flag.Parse()
+	au = aurora.NewAurora(*colours && isatty())
 }
