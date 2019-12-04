@@ -1,4 +1,3 @@
-
 /* Twig
  * Copyright (C) 2019  Nicolò Santamaria
  *
@@ -23,6 +22,7 @@ import (
 	"fmt"
 	"flag"
 	"regexp"
+	"runtime"
 
 	"github.com/logrusorgru/aurora"
 	"golang.org/x/crypto/ssh/terminal"
@@ -36,6 +36,7 @@ const (
 var ndirs int
 var nfiles int
 
+var maxDepth int
 var printAll bool
 var dirsOnly bool
 var pattern string
@@ -91,6 +92,11 @@ func filterExpr(files []os.FileInfo) (dirs []os.FileInfo, length int) {
 // TODO: Design the pattern matching properly.
 func walkDir(root string, prefix string, depth int) {
 	var arrlen int
+
+	if depth == maxDepth {
+		return
+	}
+
 	f, err := os.Open(root)
 	if err != nil {
 		return
@@ -162,7 +168,8 @@ func init() {
 	flag.BoolVar(&printAll, "a", false, "Prints all files including the hidden ones.")
 	flag.BoolVar(&dirsOnly, "d", false, "Prints only the directories.")
 	flag.StringVar(&pattern, "e", "", "Prints only the files that match the regex. (Coming soon...)")
+	flag.IntVar(&maxDepth, "l", -1, "Max display depth of the directory tree.")
 	colours := flag.Bool("c", true, "Set to false to disable colours.")
 	flag.Parse()
-	au = aurora.NewAurora(*colours && isatty())
+	au = aurora.NewAurora(*colours && isatty() && runtime.GOOS != "windows")
 }
