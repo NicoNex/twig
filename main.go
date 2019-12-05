@@ -1,4 +1,5 @@
-/* Twig
+/*
+ * Twig
  * Copyright (C) 2019  Nicolò Santamaria
  *
  * Twig is free software: you can redistribute it and/or modify
@@ -48,9 +49,18 @@ func isatty() bool {
 	return terminal.IsTerminal(int(fd))
 }
 
-func printFile(prefix string, info os.FileInfo) {
+func printErr(err error) {
+	fmt.Println(au.Red(err).Bold())
+}
+
+func printFile(prefix string, info os.FileInfo, isLast bool) {
 	var fname = info.Name()
 	var mode = info.Mode()
+	if isLast {
+		prefix += "└── "
+	} else {
+		prefix += "├── "
+	}
 
 	if info.IsDir() {
 		fmt.Printf("%s%s\n", prefix, au.Blue(fname).Bold())
@@ -83,60 +93,56 @@ func filterExpr(files []os.FileInfo) (dirs []os.FileInfo, length int) {
 			dirs = append(dirs, f)
 			length++
 		} else if err != nil {
-			fmt.Println(au.Red(err).Bold())
+			printErr(err)
 		}
 	}
 	return
 }
 
+func filterHidden(files []os.FileInfo) (farr []os.FileInfo, length int) {
+	for _, f := range files {
+		fname := f.Name()
+		if fname[0] != '.' {
+			farr = append(farr, f)
+			length++
+		}
+	}
+	return
+}
+
+func readDir(filename string) ([]os.FileInfo, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return []os.FileInfo{}, err
+	}
+	defer file.Close()
+	return file.Readdir(-1)
+}
+
 // TODO: Design the pattern matching properly.
 func walkDir(root string, prefix string, depth int) {
-	var arrlen int
+	if depth != maxDepth {
+		var arrlen int
 
-	if depth == maxDepth {
-		return
-	}
-
-	f, err := os.Open(root)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-
-	files, err := f.Readdir(-1)
-	if err != nil {
-		return
-	}
-
-	if dirsOnly {
-		files, arrlen = filterDirs(files)
-	} else {
+		files, err := readDir(root)
+		if err != nil {
+			printErr(err)
+			return
+		}
 		arrlen = len(files)
-	}
+		if !printAll {
+			files, arrlen = filterHidden(files)
+		}
+		if dirsOnly {
+			files, arrlen = filterDirs(files)
+		}
 
-	// if pattern != "" {
-	// 	files, arrlen = filterExpr(files)
-	// } else if dirsOnly {
-	// 	files, arrlen = filterDirs(files)
-	// } else {
-	// 	arrlen = len(files)
-	// }
+		for i, finfo := range files {
+			var isLast = i == arrlen-1
 
-	for i, finfo := range files {
-		var line = prefix
-		var isLast = i == arrlen-1
-		var fname = finfo.Name()
-
-		if fname[0] != '.' || printAll {
-			if isLast {
-				line += "└── "
-			} else {
-				line += "├── "
-			}
-			printFile(line, finfo)
-
+			printFile(prefix, finfo, isLast)
 			if finfo.IsDir() {
-				newPath := fmt.Sprintf("%s/%s", root, fname)
+				newPath := fmt.Sprintf("%s/%s", root, finfo.Name())
 				if isLast {
 					walkDir(newPath, prefix+NINDENT, depth+1)
 				} else {
@@ -146,16 +152,13 @@ func walkDir(root string, prefix string, depth int) {
 			} else {
 				nfiles++
 			}
-		} else {
-			i--
 		}
 	}
 }
 
 func main() {
 	var rootdir = "./"
-	var nargs = flag.NArg()
-	if nargs > 0 {
+	if flag.NArg() > 0 {
 		rootdir = os.Args[len(os.Args)-1]
 	}
 
