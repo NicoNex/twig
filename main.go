@@ -158,8 +158,8 @@ func walkDir(root string, prefix string, depth int) {
 
 func main() {
 	var rootdir = "./"
-	if flag.NArg() > 0 {
-		rootdir = os.Args[len(os.Args)-1]
+	if narg := flag.NArg(); narg > 0 {
+		rootdir = flag.Arg(narg-1)
 	}
 
 	fmt.Println(rootdir)
@@ -168,11 +168,14 @@ func main() {
 }
 
 func init() {
+	var colours = runtime.GOOS != "windows"
+
 	flag.BoolVar(&printAll, "a", false, "Prints all files including the hidden ones.")
 	flag.BoolVar(&dirsOnly, "d", false, "Prints only the directories.")
 	flag.StringVar(&pattern, "e", "", "Prints only the files that match the regex. (Coming soon...)")
 	flag.IntVar(&maxDepth, "l", -1, "Max display depth of the directory tree.")
-	colours := flag.Bool("c", true, "Set to false to disable colours.")
+	flag.BoolVar(&colours, "c", true, "Set to false to disable colours.")
+
 	flag.Parse()
-	au = aurora.NewAurora(*colours && isatty() && runtime.GOOS != "windows")
+	au = aurora.NewAurora(colours && isatty())
 }
