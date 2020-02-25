@@ -19,9 +19,10 @@
 package main
 
 import (
-	"os"
-	"fmt"
 	"flag"
+	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
 	"runtime"
 
@@ -142,7 +143,7 @@ func walkDir(root string, prefix string, depth int) {
 
 			printFile(prefix, finfo, isLast)
 			if finfo.IsDir() {
-				newPath := fmt.Sprintf("%s/%s", root, finfo.Name())
+				newPath := filepath.Join(root, finfo.Name())
 				if isLast {
 					walkDir(newPath, prefix+NINDENT, depth+1)
 				} else {
@@ -159,7 +160,7 @@ func walkDir(root string, prefix string, depth int) {
 func main() {
 	var rootdir = "./"
 	if narg := flag.NArg(); narg > 0 {
-		rootdir = flag.Arg(narg-1)
+		rootdir = flag.Arg(narg - 1)
 	}
 
 	fmt.Println(rootdir)
